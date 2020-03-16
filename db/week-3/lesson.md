@@ -152,16 +152,41 @@ Another functionality which could be useful is to filter the hotel with a keywor
 app.get("/hotels", function(req, res) {
     const hotelNameQuery = req.query.name;
     let query = `SELECT * FROM hotels ORDER BY name`;
-    
+    let queryParms = [];    
     if(hotelNameQuery) {
-        query = `SELECT * FROM hotels WHERE name LIKE '%${hotelNameQuery}%' ORDER BY name`;
+        query = `SELECT * FROM hotels WHERE name LIKE $1 ORDER BY name`;
+        queryParms = [`%${hotelNameQuery}%`];        
     }
+    pool.query(query,queryParms)
+        .then(result => res.json(result.rows))
+        .catch(e => console.error(e));
+});
+```
 
+You may think this is a bit convoluted code, couldn't we just set the query parameter
+into the query itself? something along this
+
+```js
+app.get("/hotels", function(req, res) {
+    const hotelNameQuery = req.query.name;
+    let query = `SELECT * FROM hotels ORDER BY name`;
+    if(hotelNameQuery) {
+        query = `SELECT * FROM hotels WHERE name LIKE "%${hotelNameQuery}%"`;
+    }
     pool.query(query)
         .then(result => res.json(result.rows))
         .catch(e => console.error(e));
 });
 ```
+
+Well, the answer is **no**, you can't, for security reasons. Imagine that the invoked URL (that comes
+from the external world of internet) instead of just a simple search string like `Resort`contains a carefully elaborated string `Resort"; DROP TABLE hotels`. This malicious input has permitted an attacker to erase our table! This is called an *SQL injection attack*. 
+
+Parameterized queries prevent SQL injection. They do a clean
+substitution of arguments in the server prior the run of the SQL query, using robust and
+well proven algorithms to completely remove the possibility that external input can
+change the intention of the query. changing the meaning of your query. That is, if the input contains SQL, it can't become part of what is executed becase the SQL is never injected into the resulting statement.
+
 
 In some case, you would want to load only a specific hotel by id. Let's define a new GET endpoint to load one specific hotel:
 
